@@ -16,7 +16,7 @@ class GroqClient implements AiClientInterface
     private string $apiKey;
     private string $model;
 
-    public function __construct(string $apiKey, string $model = 'llama-3.3-70b-versatile', ?Client $client = null)
+    public function __construct(string $apiKey, string $model = 'openai/gpt-oss-20b', ?Client $client = null)
     {
         if (empty($apiKey)) {
             throw new RuntimeException('GROQ_API_KEY is required for Groq client.');
@@ -25,7 +25,7 @@ class GroqClient implements AiClientInterface
         $this->apiKey = $apiKey;
         $this->model = $model;
         $this->httpClient = $client ?? new Client([
-            'timeout' => 60.0,
+            'timeout' => 90.0,
         ]);
     }
 
@@ -50,7 +50,7 @@ class GroqClient implements AiClientInterface
                         ],
                     ],
                     'temperature' => 0.7,
-                    'max_tokens' => 2048,
+                    'max_tokens' => 800,
                 ],
             ]);
 

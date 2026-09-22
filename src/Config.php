@@ -30,7 +30,7 @@ class Config
 
             // Groq Cloud
             'groq_api_key' => $_ENV['GROQ_API_KEY'] ?? '',
-            'groq_model' => $_ENV['GROQ_MODEL'] ?? 'llama-3.3-70b-versatile',
+            'groq_model' => $_ENV['GROQ_MODEL'] ?? 'openai/gpt-oss-20b',
             
             // Google Gemini
             'gemini_api_key' => $_ENV['GEMINI_API_KEY'] ?? '',
