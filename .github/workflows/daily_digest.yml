@@ -1,0 +1,61 @@
+name: 4chan Daily Digest
+
+on:
+  schedule:
+    # Запуск каждый день в 04:00 UTC (07:00 по МСК)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    # Возможность ручного запуска из интерфейса GitHub Actions с указанием параметров
+    inputs:
+      target_date:
+        description: 'Дата для анализа (ГГГГ-ММ-ДД, пусто для "вчера")'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry Run (без отправки в Telegram)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  run-digest:
+    name: Parse 4chan & Post Digest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, json, curl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-dev
+
+      - name: Execute Digest Script
+        env:
+          TIMEZONE: ${{ secrets.TIMEZONE || 'Europe/Moscow' }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'groq' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ secrets.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.0-flash' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DISABLE_NOTIFICATION: ${{ secrets.TELEGRAM_DISABLE_NOTIFICATION || 'false' }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM || 'alerts@digest.bot' }}
+          SMTP_DSN: ${{ secrets.SMTP_DSN }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            ARGS="$ARGS --date=${{ github.event.inputs.target_date }}"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          php run.php $ARGS
