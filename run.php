@@ -11,6 +11,7 @@ use App\Chan\ThreadParser;
 use App\Config;
 use App\Notifier\EmailAlert;
 use App\Telegram\TelegramPublisher;
+use App\Translation\DeepLClient;
 
 $options = getopt('', ['date:', 'dry-run', 'skip-ai', 'help']);
 
@@ -115,20 +116,36 @@ try {
     // 4. Генерация дайджеста через ИИ
     $digestText = '';
     if (!$skipAi) {
-        echo "\n🧠 Генерация дайджеста на сленге имиджборд через AI (" . $config->get('ai_provider') . ")...\n";
+        echo "\n🧠 Генерация англоязычного дайджеста через AI (" . $config->get('ai_provider') . ")...\n";
         
         $promptBuilder = new PromptBuilder();
         $prompts = $promptBuilder->buildPrompts($targetDate, $twgData, $utwgData);
 
         $aiClient = AiFactory::create($config);
-        $digestText = $aiClient->generateDigest($prompts['system'], $prompts['user']);
-        echo "✅ Дайджест успешно сгенерирован (" . mb_strlen($digestText) . " символов).\n";
+        $englishDigest = $aiClient->generateDigest($prompts['system'], $prompts['user']);
+        echo "✅ Англоязычный дайджест успешно сгенерирован (" . mb_strlen($englishDigest) . " символов).\n";
 
-        echo "\n------------------- [ИТОГОВЫЙ ДАЙДЖЕСТ] -------------------\n";
-        echo $digestText . "\n";
-        echo "-----------------------------------------------------------\n\n";
+        echo "\n------------------- [АНГЛОЯЗЫЧНЫЙ ДАЙДЖЕСТ (AI)] -------------------\n";
+        echo $englishDigest . "\n";
+        echo "--------------------------------------------------------------------\n\n";
+
+        // 4.1 Перевод на русский язык через DeepL
+        if ($config->has('deepl_api_key')) {
+            echo "🌐 Перевод дайджеста на русский язык через DeepL API...\n";
+            $deeplClient = new DeepLClient((string)$config->get('deepl_api_key'));
+            $targetLang = (string)$config->get('deepl_target_lang', 'RU');
+            $digestText = $deeplClient->translate($englishDigest, $targetLang, 'EN');
+            echo "✅ Дайджест успешно переведен на {$targetLang} (" . mb_strlen($digestText) . " символов).\n";
+
+            echo "\n------------------- [ИТОГОВЫЙ ДАЙДЖЕСТ (DeepL / RU)] -------------------\n";
+            echo $digestText . "\n";
+            echo "------------------------------------------------------------------------\n\n";
+        } else {
+            echo "⚠️ DEEPL_API_KEY не задан в .env. Публикуется оригинальный англоязычный дайджест.\n";
+            $digestText = $englishDigest;
+        }
     } else {
-        $digestText = "🗓 **Дайджест /twg/ & /utwg/ за {$targetDate}**\n\n(AI генерация пропущена через флаг --skip-ai)";
+        $digestText = "🗓 **DAILY DIGEST for {$targetDate}**\n\n(AI generation skipped via --skip-ai flag)";
     }
 
     // 5. Публикация в Telegram

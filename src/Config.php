@@ -36,6 +36,10 @@ class Config
             'gemini_api_key' => $_ENV['GEMINI_API_KEY'] ?? '',
             'gemini_model' => $_ENV['GEMINI_MODEL'] ?? 'gemini-2.0-flash',
 
+            // DeepL Translator
+            'deepl_api_key' => $_ENV['DEEPL_API_KEY'] ?? '',
+            'deepl_target_lang' => strtoupper($_ENV['DEEPL_TARGET_LANG'] ?? 'RU'),
+
             // Telegram
             'telegram_bot_token' => $_ENV['TELEGRAM_BOT_TOKEN'] ?? '',
             'telegram_chat_id' => $_ENV['TELEGRAM_CHAT_ID'] ?? '',

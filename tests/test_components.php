@@ -8,6 +8,11 @@ use App\Ai\PromptBuilder;
 use App\Chan\CatalogParser;
 use App\Chan\ThreadParser;
 use App\Telegram\TelegramPublisher;
+use App\Translation\DeepLClient;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 
 echo "🧪 Запуск тестов компонентов...\n\n";
 
@@ -69,10 +74,10 @@ $utwgMock = [
 ];
 
 $prompts = $builder->buildPrompts('2026-09-21', $twgMock, $utwgMock);
-assert(str_contains($prompts['user'], 'Контекст #100 в 2026-09-20 23:45:00'), "User prompt must contain lookback parent context");
+assert(str_contains($prompts['user'], 'I got laid off yesterday.'), "User prompt must contain lookback parent context");
 assert(str_contains($prompts['user'], 'Same here bro.'), "User prompt must contain yesterday post");
 assert(str_contains($prompts['user'], 'Still no job.'), "User prompt must contain utwg post");
-assert(str_contains($prompts['system'], 'сатирический и язвительный летописец'), "System prompt must have imageboard persona");
+assert(str_contains($prompts['system'], 'objective tech analyst'), "System prompt must have objective analyst persona");
 echo "OK!\n";
 
 // Test 3: Telegram Publisher splitting logic
@@ -89,6 +94,28 @@ assert(count($chunks) > 1, "Should split into multiple chunks");
 foreach ($chunks as $chunk) {
     assert(mb_strlen($chunk) <= 4096, "Each chunk must not exceed 4096 chars");
 }
+echo "OK!\n";
+
+// Test 4: DeepLClient endpoint auto-detection and translation parsing
+echo "4. Тест DeepLClient (автоопределение эндпоинта Free/Pro и парсинг перевода)... ";
+$freeClient = new DeepLClient('sample-key-1234:fx');
+assert($freeClient->getEndpoint() === 'https://api-free.deepl.com/v2/translate', "Free key ending with :fx must resolve to Free endpoint");
+
+$proClient = new DeepLClient('sample-pro-key-5678');
+assert($proClient->getEndpoint() === 'https://api.deepl.com/v2/translate', "Pro key without :fx must resolve to Pro endpoint");
+
+$mock = new MockHandler([
+    new Response(200, [], json_encode([
+        'translations' => [
+            ['detected_source_language' => 'EN', 'text' => 'Доброе утро, погромисты!']
+        ]
+    ]))
+]);
+$handlerStack = HandlerStack::create($mock);
+$mockGuzzle = new Client(['handler' => $handlerStack]);
+$clientWithMock = new DeepLClient('test-key:fx', null, $mockGuzzle);
+$translated = $clientWithMock->translate('Good morning, code monkeys!', 'RU', 'EN');
+assert($translated === 'Доброе утро, погромисты!', "Translated text must match mock response");
 echo "OK!\n";
 
 echo "\n🎉 Все тесты компонентов успешно пройдены!\n";
