@@ -50,7 +50,7 @@ class GroqClient implements AiClientInterface
                         ],
                     ],
                     'temperature' => 0.7,
-                    'max_tokens' => 1200,
+                    'max_tokens' => 2000,
                 ],
             ]);
 
