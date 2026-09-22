@@ -7,7 +7,7 @@ namespace App\Ai;
 class PromptBuilder
 {
     private const MAX_POSTS_PER_THREAD = 35;
-    private const MAX_POST_CHARS = 140;
+    private const MAX_POST_CHARS = 450;
 
     /**
      * Builds system and user prompt for LLM summarizer in native Russian imageboard slang.
