@@ -11,9 +11,8 @@ use App\Chan\ThreadParser;
 use App\Config;
 use App\Notifier\EmailAlert;
 use App\Telegram\TelegramPublisher;
-use App\Translator\DeepLClient;
 
-$options = getopt('', ['date:', 'dry-run', 'skip-ai', 'deepl', 'help']);
+$options = getopt('', ['date:', 'dry-run', 'skip-ai', 'help']);
 
 if (isset($options['help'])) {
     echo <<<HELP
@@ -26,7 +25,6 @@ if (isset($options['help'])) {
   --date=YYYY-MM-DD  Указать дату для анализа (по умолчанию: вчера)
   --dry-run          Тестовый запуск: без отправки сообщений и картинок в Telegram
   --skip-ai          Пропустить вызов ИИ (для проверки парсинга и картинок)
-  --deepl            Принудительно использовать DeepL для перевода выжимки на русский
   --help             Показать эту справку
 
 HELP;
@@ -38,7 +36,6 @@ $skipAi = isset($options['skip-ai']);
 
 $config = Config::getInstance();
 $alert = new EmailAlert($config);
-$useDeepl = isset($options['deepl']) || (bool)$config->get('use_deepl');
 
 $targetDate = $options['date'] ?? (new DateTimeImmutable('yesterday', new DateTimeZone((string)$config->get('timezone'))))->format('Y-m-d');
 
@@ -47,7 +44,6 @@ echo "🚀 4chan /twg/ & /utwg/ Daily Digest Runner\n";
 echo "📅 Целевая дата: {$targetDate}\n";
 echo "🌍 Часовой пояс: " . $config->get('timezone') . "\n";
 echo "🧠 AI Провайдер: " . $config->get('ai_provider') . "\n";
-echo "🌐 Перевод через DeepL: " . ($useDeepl ? "ВКЛЮЧЕН" : "ВЫКЛЮЧЕН (прямой русский промпт)") . "\n";
 echo "🤖 Режим публикации: " . ($isDryRun ? "DRY RUN (без отправки в TG)" : "PRODUCTION") . "\n";
 echo "====================================================\n\n";
 
@@ -119,27 +115,14 @@ try {
     // 4. Генерация дайджеста через ИИ
     $digestText = '';
     if (!$skipAi) {
-        $outputLang = $useDeepl ? 'en' : 'ru';
-        echo "\n🧠 Генерация дайджеста через AI (" . $config->get('ai_provider') . ", язык промпта: {$outputLang})...\n";
+        echo "\n🧠 Генерация дайджеста на сленге имиджборд через AI (" . $config->get('ai_provider') . ")...\n";
         
         $promptBuilder = new PromptBuilder();
-        $prompts = $promptBuilder->buildPrompts($targetDate, $twgData, $utwgData, $outputLang);
+        $prompts = $promptBuilder->buildPrompts($targetDate, $twgData, $utwgData);
 
         $aiClient = AiFactory::create($config);
-        $rawAiOutput = $aiClient->generateDigest($prompts['system'], $prompts['user']);
-        echo "✅ Ответ от AI получен (" . mb_strlen($rawAiOutput) . " символов).\n";
-
-        // Перевод через DeepL при необходимости
-        if ($useDeepl) {
-            echo "🌐 Перевод дайджеста на русский через DeepL API...\n";
-            $deeplApiKey = (string)$config->get('deepl_api_key');
-            $isPro = (bool)$config->get('deepl_is_pro');
-            $deeplClient = new DeepLClient($deeplApiKey, $isPro);
-            $digestText = $deeplClient->translate($rawAiOutput, 'RU', 'EN');
-            echo "✅ Перевод DeepL успешно выполнен (" . mb_strlen($digestText) . " символов).\n";
-        } else {
-            $digestText = $rawAiOutput;
-        }
+        $digestText = $aiClient->generateDigest($prompts['system'], $prompts['user']);
+        echo "✅ Дайджест успешно сгенерирован (" . mb_strlen($digestText) . " символов).\n";
 
         echo "\n------------------- [ИТОГОВЫЙ ДАЙДЖЕСТ] -------------------\n";
         echo $digestText . "\n";

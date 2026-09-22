@@ -7,24 +7,14 @@ namespace App\Ai;
 class PromptBuilder
 {
     /**
-     * Builds system and user prompt for LLM summarizer.
+     * Builds system and user prompt for LLM summarizer in native Russian imageboard slang.
      *
      * @param string $targetDate YYYY-MM-DD
      * @param array $twgData Parsed data for /twg/
      * @param array $utwgData Parsed data for /utwg/
-     * @param string $outputLang 'ru' or 'en'
      * @return array{system: string, user: string}
      */
-    public function buildPrompts(string $targetDate, array $twgData, array $utwgData, string $outputLang = 'ru'): array
-    {
-        if (strtolower($outputLang) === 'en') {
-            return $this->buildEnglishPrompts($targetDate, $twgData, $utwgData);
-        }
-
-        return $this->buildRussianPrompts($targetDate, $twgData, $utwgData);
-    }
-
-    private function buildRussianPrompts(string $targetDate, array $twgData, array $utwgData): array
+    public function buildPrompts(string $targetDate, array $twgData, array $utwgData): array
     {
         $system = <<<SYSTEM
 Ты — сатирический и язвительный летописец с имиджборд (в духе /g/ 4chan и /dev/ Двача).
@@ -34,7 +24,7 @@ class PromptBuilder
 
 ВАЖНЫЕ ТРЕБОВАНИЯ:
 1. Язык: Натуральный, сочный русский язык с характерным имиджборд-сленгом (аноны, вкатуны, сеньоры-помидоры, галеры, гребцы, кукож, оферы, сычевание, лейоффы, литкод, тир-1/тир-3, шизотеории, дофаминовый крах). Без занудной академичности.
-2. Внимание к дискуссиям: Обращай внимание, что разные посты и цепочки реплаев обсуждали разные темы. Выделяй конкретные споры (например: «один анон доказывал, что рынок восстановился, но его быстро затравили фактами о квотах»).
+2. Внимание к дискуссиям: Обращай внимание, что разные посты и цепочки реплаев обсуждали разные темы. Выделяй конкретные споры и разногласия между анонами.
 3. Учитывай контекст: В данных есть пометки [Контекст от предыдущего дня], используй их, чтобы точно понимать суть дискуссий.
 4. Жесткий лимит размера: Текст дайджеста должен быть информативным, но строго ПОМЕЩАТЬСЯ В ОДНО СООБЩЕНИЕ TELEGRAM (не более 3500 символов суммарно с разметкой).
 5. Форматирование: Используй Telegram Markdown (жирный шрифт **текст**, курсив *текст*, цитаты > текст).
@@ -60,39 +50,7 @@ SYSTEM;
         $user .= $this->formatThreadContent($utwgData);
         $user .= "\n\n";
 
-        $user .= "Сделай художественную выжимку по правилам из системного промпта. Текст должен быть на русском языке и строго укладываться в лимит одного сообщения Telegram (до 3500 символов)!";
-
-        return ['system' => $system, 'user' => $user];
-    }
-
-    private function buildEnglishPrompts(string $targetDate, array $twgData, array $utwgData): array
-    {
-        $system = <<<SYSTEM
-You are a witty, satirical chronicler of imageboards (in the spirit of 4chan /g/).
-Your task is to write a single, engaging, and structured daily digest in English summarizing the two main tech threads:
-1. /twg/ (Tech Workers General) — employed tech workers (wagecucks, overemployment, layoff anxiety, toxic management, burnout).
-2. /utwg/ (Unemployable Tech Workers General) — unemployed and NEETs (hundreds of ghost applications, doom & gloom, despair, cheap ramen, outsourcing, existential crisis).
-
-REQUIREMENTS:
-1. Use authentic imageboard tone and lingo (anons, wagecucks, NEETs, leetcode, tier 1/tier 3, schizoposts, coping).
-2. Highlight distinct discussion branches and arguments between posters.
-3. Keep the total length strictly under 3500 characters so it fits inside a single Telegram post.
-4. Structure:
-🗓 **Tech Despair Chronicles: /twg/ & /utwg/ for {$targetDate}**
-💥 **Daily Vibe**: general atmosphere in 2-3 sharp sentences.
-💼 **/twg/ (The Employed Wagecucks)**: main topics of the working folks.
-🥫 **/utwg/ (The Unemployed Void)**: dispatch from the jobless trenches.
-⚔️ **Drama & Schizo Debates**: funniest clashes and heated arguments.
-🏁 **Verdict**: closing philosophical punchline.
-SYSTEM;
-
-        $user = "Digest Date: {$targetDate}\n\n";
-        $user .= "==================== [THREAD 1: /twg/] ====================\n";
-        $user .= $this->formatThreadContent($twgData);
-        $user .= "\n\n";
-        $user .= "==================== [THREAD 2: /utwg/] ====================\n";
-        $user .= $this->formatThreadContent($utwgData);
-        $user .= "\n\nWrite the digest in English according to the instructions.";
+        $user .= "Сделай художественную выжимку по правилам из системного промпта. Текст должен быть на сочном русском языке в сленге имиджборд и строго укладываться в лимит одного сообщения Telegram (до 3500 символов)!";
 
         return ['system' => $system, 'user' => $user];
     }
@@ -102,20 +60,20 @@ SYSTEM;
         $lines = [];
 
         if (!empty($data['context_posts'])) {
-            $lines[] = "--- [Lookback Context from previous days] ---";
+            $lines[] = "--- [Контекст от предыдущих дней для цепочек ответов] ---";
             foreach ($data['context_posts'] as $cp) {
                 $lines[] = sprintf(
-                    "[Context #%d at %s]: %s",
+                    "[Контекст #%d в %s]: %s",
                     $cp['no'],
                     $cp['datetime'],
                     $this->truncate($cp['text'], 200)
                 );
             }
-            $lines[] = "--- [Target Day Posts] ---";
+            $lines[] = "--- [Посты непосредственно за вчера] ---";
         }
 
         foreach ($data['posts'] ?? [] as $post) {
-            $quotesStr = !empty($post['quotes']) ? ' (Replies to: >>' . implode(', >>', $post['quotes']) . ')' : '';
+            $quotesStr = !empty($post['quotes']) ? ' (Ответ на: >>' . implode(', >>', $post['quotes']) . ')' : '';
             $lines[] = sprintf(
                 "#%d [%s]%s: %s",
                 $post['no'],
