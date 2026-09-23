@@ -8,20 +8,24 @@ set -e
 
 echo "🚀 Начинаем настройку сервера для 4chan Digest Bot..."
 
-# 1. Обновление пакетов системы
+# 1. Настройка системного часового пояса в UTC (для строгого запуска по UTC в cron)
+echo "🕒 Настройка часового пояса сервера в UTC..."
+sudo timedatectl set-timezone UTC
+
+# 2. Обновление пакетов системы
 echo "📦 Обновление списка пакетов..."
 sudo apt-get update -y
 sudo apt-get upgrade -y
 sudo apt-get install -y software-properties-common curl git unzip
 
-# 2. Добавление репозитория Ondřej Surý для актуального PHP
+# 3. Добавление репозитория Ondřej Surý для актуального PHP
 if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
     echo "📦 Добавление PPA для PHP 8.3..."
     sudo add-apt-repository -y ppa:ondrej/php
     sudo apt-get update -y
 fi
 
-# 3. Установка PHP 8.3 и расширений
+# 4. Установка PHP 8.3 и расширений
 echo "🐘 Установка PHP 8.3 и необходимых расширений..."
 sudo apt-get install -y \
     php8.3-cli \
@@ -29,7 +33,7 @@ sudo apt-get install -y \
     php8.3-mbstring \
     php8.3-xml
 
-# 4. Установка Composer
+# 5. Установка Composer
 if ! command -v composer &> /dev/null; then
     echo "🎼 Установка Composer..."
     curl -sS https://getcomposer.org/installer | php
@@ -41,7 +45,7 @@ echo "✅ PHP и Composer установлены:"
 php -v
 composer -V
 
-# 5. Настройка рабочего каталога
+# 6. Настройка рабочего каталога
 PROJECT_DIR="/opt/utwg_digest"
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "📁 Создание каталога проекта: $PROJECT_DIR..."
@@ -51,7 +55,7 @@ if [ ! -d "$PROJECT_DIR" ]; then
     echo "   git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ> $PROJECT_DIR"
 fi
 
-# 6. Настройка ежедневного Cron
+# 7. Настройка ежедневного Cron
 CRON_JOB="0 4 * * * cd $PROJECT_DIR && /usr/bin/php run.php >> /var/log/chan_digest.log 2>&1"
 
 if ! crontab -l 2>/dev/null | grep -q "run.php"; then
@@ -63,7 +67,7 @@ else
     echo "ℹ️ Задание уже присутствует в crontab."
 fi
 
-# 7. Настройка файла логов
+# 8. Настройка файла логов
 sudo touch /var/log/chan_digest.log
 sudo chown $USER:$USER /var/log/chan_digest.log
 
