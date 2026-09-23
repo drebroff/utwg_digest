@@ -99,10 +99,12 @@ class TelegramPublisher
     }
 
     /**
-     * Post a list of media items (photos and videos) in albums of up to 10 items each.
+     * Post a list of media items in albums of up to 10 items each.
+     * Photos (jpg, png) are grouped into albums.
+     * Videos (mp4) are sent separately to avoid Telegram API 400 errors with mixed remote URLs.
      *
      * @param array<int, array{url: string, is_video?: bool, ext?: string}> $mediaItems
-     * @return int Number of successfully sent albums / media items
+     * @return int Number of successfully sent items
      */
     public function sendMediaAlbums(array $mediaItems): int
     {
@@ -110,43 +112,78 @@ class TelegramPublisher
             return 0;
         }
 
-        // Filter out items that Telegram photo/video endpoints can accept
-        $validMedia = array_values(array_filter($mediaItems, function ($item) {
-            $ext = strtolower($item['ext'] ?? pathinfo($item['url'], PATHINFO_EXTENSION));
-            // Telegram sendMediaGroup photo supports jpg, png; video supports mp4
-            // Webm is often not supported in standard album photo/video without conversion
-            return in_array($ext, ['.jpg', '.jpeg', '.png', '.mp4', 'jpg', 'jpeg', 'png', 'mp4'], true);
-        }));
+        // Separate photos and videos
+        // Telegram sendMediaGroup reliably accepts photos (jpg, jpeg, png).
+        // Mixing video URLs with photo URLs in sendMediaGroup frequently triggers 400 Bad Request.
+        $photos = [];
+        $videos = [];
 
-        if (empty($validMedia)) {
-            return 0;
+        foreach ($mediaItems as $item) {
+            $ext = strtolower($item['ext'] ?? pathinfo($item['url'], PATHINFO_EXTENSION));
+            $cleanExt = ltrim($ext, '.');
+            if (in_array($cleanExt, ['jpg', 'jpeg', 'png'], true)) {
+                $photos[] = $item;
+            } elseif ($cleanExt === 'mp4') {
+                $videos[] = $item;
+            }
         }
 
-        $batches = array_chunk($validMedia, self::MAX_MEDIA_GROUP_SIZE);
         $sentCount = 0;
 
-        foreach ($batches as $index => $batch) {
-            // Telegram sendMediaGroup requires between 2 and 10 items
-            if (count($batch) === 1) {
-                $this->sendSinglePhoto($batch[0]['url']);
-                $sentCount++;
-            } else {
-                $mediaGroup = [];
-                foreach ($batch as $item) {
-                    $isVideo = !empty($item['is_video']) || in_array(strtolower($item['ext'] ?? ''), ['.mp4', 'mp4'], true);
-                    $mediaGroup[] = [
-                        'type' => $isVideo ? 'video' : 'photo',
-                        'media' => $item['url'],
-                    ];
+        // 1. Send photos in albums of up to 10
+        if (!empty($photos)) {
+            $batches = array_chunk($photos, self::MAX_MEDIA_GROUP_SIZE);
+
+            foreach ($batches as $index => $batch) {
+                if (count($batch) === 1) {
+                    try {
+                        $this->sendSinglePhoto($batch[0]['url']);
+                        $sentCount++;
+                    } catch (\Exception $e) {
+                        echo "⚠️ Ошибка отправки фото {$batch[0]['url']}: " . $e->getMessage() . "\n";
+                    }
+                } else {
+                    $mediaGroup = [];
+                    foreach ($batch as $item) {
+                        $mediaGroup[] = [
+                            'type' => 'photo',
+                            'media' => $item['url'],
+                        ];
+                    }
+
+                    try {
+                        $this->sendMediaGroup($mediaGroup);
+                        $sentCount += count($batch);
+                    } catch (\Exception $e) {
+                        echo "⚠️ Ошибка отправки альбома (" . count($batch) . " фото): " . $e->getMessage() . "\n";
+                        echo "ℹ️ Пробуем отправить фото из этого альбома по отдельности...\n";
+
+                        foreach ($batch as $item) {
+                            try {
+                                $this->sendSinglePhoto($item['url']);
+                                $sentCount++;
+                                usleep(300000);
+                            } catch (\Exception $singleErr) {
+                                echo "⚠️ Не удалось отправить фото {$item['url']}: " . $singleErr->getMessage() . "\n";
+                            }
+                        }
+                    }
                 }
 
-                $this->sendMediaGroup($mediaGroup);
-                $sentCount += count($batch);
+                if (isset($batches[$index + 1])) {
+                    sleep(2);
+                }
             }
+        }
 
-            // Be polite to Telegram flood limits between albums
-            if (isset($batches[$index + 1])) {
+        // 2. Send videos individually (if any mp4)
+        foreach ($videos as $videoItem) {
+            try {
+                $this->sendSingleVideo($videoItem['url']);
+                $sentCount++;
                 sleep(2);
+            } catch (\Exception $e) {
+                echo "⚠️ Ошибка отправки видео {$videoItem['url']}: " . $e->getMessage() . "\n";
             }
         }
 
@@ -160,6 +197,18 @@ class TelegramPublisher
             'json' => [
                 'chat_id' => $this->chatId,
                 'photo' => $photoUrl,
+                'disable_notification' => true,
+            ],
+        ]);
+    }
+
+    private function sendSingleVideo(string $videoUrl): void
+    {
+        $url = sprintf(self::TELEGRAM_API_BASE, $this->botToken, 'sendVideo');
+        $this->httpClient->post($url, [
+            'json' => [
+                'chat_id' => $this->chatId,
+                'video' => $videoUrl,
                 'disable_notification' => true,
             ],
         ]);
