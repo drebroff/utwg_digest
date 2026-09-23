@@ -16,7 +16,8 @@ sudo timedatectl set-timezone UTC
 echo "📦 Обновление списка пакетов..."
 sudo apt-get update -y
 sudo apt-get upgrade -y
-sudo apt-get install -y software-properties-common curl git unzip
+sudo apt-get install -y software-properties-common curl git unzip cron
+sudo systemctl enable --now cron
 
 # 3. Добавление репозитория Ondřej Surý для актуального PHP
 if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
@@ -58,9 +59,14 @@ fi
 # 7. Настройка ежедневного Cron
 CRON_JOB="0 4 * * * cd $PROJECT_DIR && /usr/bin/php run.php >> /var/log/chan_digest.log 2>&1"
 
-if ! crontab -l 2>/dev/null | grep -q "run.php"; then
+EXISTING_CRON=$(crontab -l 2>/dev/null || true)
+if ! echo "$EXISTING_CRON" | grep -q "run.php"; then
     echo "⏰ Добавление ежедневного задания в crontab (запуск в 04:00 UTC)..."
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    if [ -n "$EXISTING_CRON" ]; then
+        printf "%s\n%s\n" "$EXISTING_CRON" "$CRON_JOB" | crontab -
+    else
+        printf "%s\n" "$CRON_JOB" | crontab -
+    fi
     echo "✅ Задание успешно добавлено в crontab:"
     crontab -l | grep "run.php"
 else
