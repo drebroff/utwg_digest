@@ -36,14 +36,21 @@ utwg_digest/
 │   ├── Chan/
 │   │   ├── CatalogParser.php    # Поиск /twg/ и /utwg/ в catalog.json
 │   │   └── ThreadParser.php     # Фильтрация постов за вчера, контекст цитат, медиа
+│   ├── Drupal/
+│   │   ├── DrupalChatFetcher.php       # MTProto клиент (MadelineProto) для @drupal_rus
+│   │   ├── DrupalPromptBuilder.php     # Промпт для выявления тем работы и рынка труда
+│   │   └── DrupalJobMarketAnalyzer.php # Анализ сообщений через Grok AI
 │   ├── Notifier/
 │   │   └── EmailAlert.php       # Отправка SMTP алертов через Brevo
 │   ├── Telegram/
 │   │   └── TelegramPublisher.php# Публикация дайджеста и медиагрупп
 │   └── Config.php               # Загрузка конфигурации окружения
+├── tests/
+│   └── test_components.php      # Unit-тесты компонентов (4chan + Drupal + AI)
 ├── .env.example                 # Шаблон переменных окружения
 ├── composer.json
-└── run.php                      # Точка входа для CLI и планировщика
+├── run.php                      # Основной процесс: ежедневный дайджест 4chan
+└── run_drupal.php               # Независимый процесс: мониторинг чата Drupal RU
 ```
 
 ---
@@ -123,3 +130,59 @@ utwg_digest/
   ```bash
   cd /opt/utwg_digest && php run.php
   ```
+
+---
+
+## 🐘 Мониторинг чата Drupal RU (`run_drupal.php`)
+
+Отдельный, независимый процесс для ежедневного анализа русскоязычного сообщества Drupal ([@drupal_rus](https://t.me/drupal_rus)).
+
+### Как это работает:
+1. По протоколу **Telegram MTProto (MadelineProto)** выгружает все сообщения из супергруппы `@drupal_rus` за прошедшие сутки.
+2. Передает сообщения в **Grok (xAI)** с промптом поиска тем:
+   - Рынок труда (зарплаты, рейты, кризис найма, сокращения).
+   - Поиск работы (резюме, запросы на проекты).
+   - Предложения работы (вакансии, заказы, субподряд).
+3. **Публикация в канал `utwg_digest`:**
+   - **Если темы работы обсуждались** — формирует бонусный пост с никами участников и тезисами сути спора/предложения и публикует его в канал.
+   - **Если тем работы не было** — ничего не публикует (тихий пропуск с информационным логом).
+
+### Настройка MTProto:
+1. Зайдите на [my.telegram.org](https://my.telegram.org) -> **API development tools**.
+2. Создайте приложение (App title и Short name любые, например `DrupalDigest`) и скопируйте `api_id` и `api_hash`.
+3. Укажите в `.env`:
+   ```env
+   TELEGRAM_API_ID=12345678
+   TELEGRAM_API_HASH=your_api_hash_here
+   TELEGRAM_MADELINE_SESSION=data/drupal_session.madeline
+   TELEGRAM_DRUPAL_CHAT=drupal_rus
+   ENABLE_DRUPAL_BONUS=true
+   ```
+4. Выполните разовую интерактивную авторизацию в консоли:
+   ```bash
+   php run_drupal.php --auth
+   ```
+   Введите номер телефона (с кодом страны) и код из Telegram. Сессия сохранится в файл.
+
+### Запуск и тестирование:
+```bash
+# Справка по всем опциям
+php run_drupal.php --help
+
+# Тестовый прогон за вчера без отправки в канал
+php run_drupal.php --dry-run
+
+# Проверка загрузки сообщений без обращения к ИИ
+php run_drupal.php --skip-ai
+
+# Запуск за конкретную дату
+php run_drupal.php --date=2026-09-22 --dry-run
+```
+
+### Управление отдельным процессом в cron:
+В `crontab` процесс прописан отдельной строкой:
+```cron
+30 4 * * * cd /opt/utwg_digest && /usr/bin/php run_drupal.php >> /var/log/drupal_digest.log 2>&1
+```
+Чтобы временно отключить мониторинг Drupal, достаточно закомментировать эту строку символом `#` в `crontab -e` либо выставить `ENABLE_DRUPAL_BONUS=false` в `.env`.
+

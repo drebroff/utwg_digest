@@ -7,7 +7,8 @@
         "php": ">=8.2",
         "guzzlehttp/guzzle": "^7.8",
         "vlucas/phpdotenv": "^5.6",
-        "symfony/mailer": "^7.0"
+        "symfony/mailer": "^7.0",
+        "danog/madelineproto": "^8.7"
     },
     "autoload": {
         "psr-4": {

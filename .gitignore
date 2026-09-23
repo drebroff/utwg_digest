@@ -3,3 +3,7 @@
 .DS_Store
 *.log
 composer.phar
+data/
+*.madeline
+*.madeline.*
+

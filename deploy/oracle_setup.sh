@@ -32,7 +32,8 @@ sudo apt-get install -y \
     php8.3-cli \
     php8.3-curl \
     php8.3-mbstring \
-    php8.3-xml
+    php8.3-xml \
+    php8.3-gmp
 
 # 5. Установка Composer
 if ! command -v composer &> /dev/null; then
@@ -57,25 +58,31 @@ if [ ! -d "$PROJECT_DIR" ]; then
 fi
 
 # 7. Настройка ежедневного Cron
-CRON_JOB="0 4 * * * cd $PROJECT_DIR && /usr/bin/php run.php >> /var/log/chan_digest.log 2>&1"
+# 7.1 Основной дайджест 4chan /twg/ и /utwg/ в 04:00 UTC
+CRON_JOB_CHAN="0 4 * * * cd $PROJECT_DIR && /usr/bin/php run.php >> /var/log/chan_digest.log 2>&1"
+# 7.2 Бонусный мониторинг чата Drupal (@drupal_rus) в 04:30 UTC (независимый процесс)
+CRON_JOB_DRUPAL="30 4 * * * cd $PROJECT_DIR && /usr/bin/php run_drupal.php >> /var/log/drupal_digest.log 2>&1"
 
 EXISTING_CRON=$(crontab -l 2>/dev/null || true)
-if ! echo "$EXISTING_CRON" | grep -q "run.php"; then
-    echo "⏰ Добавление ежедневного задания в crontab (запуск в 04:00 UTC)..."
-    if [ -n "$EXISTING_CRON" ]; then
-        printf "%s\n%s\n" "$EXISTING_CRON" "$CRON_JOB" | crontab -
-    else
-        printf "%s\n" "$CRON_JOB" | crontab -
-    fi
-    echo "✅ Задание успешно добавлено в crontab:"
-    crontab -l | grep "run.php"
-else
-    echo "ℹ️ Задание уже присутствует в crontab."
+NEW_CRON="$EXISTING_CRON"
+
+if ! echo "$NEW_CRON" | grep -q "run.php"; then
+    echo "⏰ Добавление задания 4chan в crontab (запуск в 04:00 UTC)..."
+    NEW_CRON=$(printf "%s\n%s" "$NEW_CRON" "$CRON_JOB_CHAN")
 fi
 
-# 8. Настройка файла логов
-sudo touch /var/log/chan_digest.log
-sudo chown $USER:$USER /var/log/chan_digest.log
+if ! echo "$NEW_CRON" | grep -q "run_drupal.php"; then
+    echo "⏰ Добавление задания Drupal в crontab (запуск в 04:30 UTC)..."
+    NEW_CRON=$(printf "%s\n%s" "$NEW_CRON" "$CRON_JOB_DRUPAL")
+fi
+
+echo "$NEW_CRON" | sed '/^$/d' | crontab -
+echo "✅ Задания в crontab настроены:"
+crontab -l | grep -E "run\.php|run_drupal\.php" || true
+
+# 8. Настройка файлов логов
+sudo touch /var/log/chan_digest.log /var/log/drupal_digest.log
+sudo chown $USER:$USER /var/log/chan_digest.log /var/log/drupal_digest.log
 
 echo ""
 echo "🎉 Сервер Oracle Cloud успешно подготовлен!"
@@ -83,4 +90,7 @@ echo "Следующие шаги:"
 echo "1. Перейдите в каталог: cd $PROJECT_DIR"
 echo "2. Скопируйте .env.example в .env и заполните ключи: cp .env.example .env && nano .env"
 echo "3. Установите зависимости: composer install --no-dev"
-echo "4. Протестируйте работу бота: php run.php --dry-run"
+echo "4. Авторизуйте сессию Telegram MTProto для Drupal: php run_drupal.php --auth"
+echo "5. Протестируйте работу скриптов в режиме dry-run:"
+echo "   php run.php --dry-run"
+echo "   php run_drupal.php --dry-run"

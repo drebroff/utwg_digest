@@ -40,10 +40,17 @@ class Config
             'deepl_api_key' => $_ENV['DEEPL_API_KEY'] ?? '',
             'deepl_target_lang' => strtoupper($_ENV['DEEPL_TARGET_LANG'] ?? 'RU'),
 
-            // Telegram
+            // Telegram Bot (Publishing)
             'telegram_bot_token' => $_ENV['TELEGRAM_BOT_TOKEN'] ?? '',
             'telegram_chat_id' => $_ENV['TELEGRAM_CHAT_ID'] ?? '',
             'telegram_disable_notification' => filter_var($_ENV['TELEGRAM_DISABLE_NOTIFICATION'] ?? false, FILTER_VALIDATE_BOOLEAN),
+
+            // Telegram MTProto (MadelineProto for reading @drupal_rus)
+            'telegram_api_id' => (int)($_ENV['TELEGRAM_API_ID'] ?? 0),
+            'telegram_api_hash' => $_ENV['TELEGRAM_API_HASH'] ?? '',
+            'telegram_madeline_session' => $_ENV['TELEGRAM_MADELINE_SESSION'] ?? 'data/drupal_session.madeline',
+            'telegram_drupal_chat' => $_ENV['TELEGRAM_DRUPAL_CHAT'] ?? 'drupal_rus',
+            'enable_drupal_bonus' => filter_var($_ENV['ENABLE_DRUPAL_BONUS'] ?? true, FILTER_VALIDATE_BOOLEAN),
 
             // Email Alerts (Brevo / SMTP)
             'alert_email_to' => $_ENV['ALERT_EMAIL_TO'] ?? '',

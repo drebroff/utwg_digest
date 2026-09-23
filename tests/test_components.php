@@ -118,4 +118,78 @@ $translated = $clientWithMock->translate('Good morning, code monkeys!', 'RU', 'E
 assert($translated === 'Доброе утро, погромисты!', "Translated text must match mock response");
 echo "OK!\n";
 
+// Test 5: DrupalPromptBuilder formatting & prompts
+echo "5. Тест DrupalPromptBuilder (форматирование сообщений и промпта)... ";
+$dpBuilder = new \App\Drupal\DrupalPromptBuilder();
+$sampleMessages = [
+    [
+        'id' => 10,
+        'date' => '14:20:00',
+        'sender_username' => '@drupal_dev',
+        'sender_name' => 'Иван Иванов',
+        'text' => 'Ребята, кто сейчас ищет Drupal 10 разработчика на парт-тайм?',
+        'reply_to_msg_id' => null,
+    ],
+    [
+        'id' => 11,
+        'date' => '14:22:15',
+        'sender_username' => null,
+        'sender_name' => 'Алексей',
+        'text' => 'Мы ищем мидла на Symfony/Drupal, ставка от 2000$.',
+        'reply_to_msg_id' => 10,
+    ],
+];
+$prompts = $dpBuilder->buildPrompts('2026-09-22', 'drupal_rus', $sampleMessages);
+assert(str_contains($prompts['system'], 'аналитик русскоязычных IT-сообществ'), "System prompt must have analyst persona");
+assert(str_contains($prompts['user'], '@drupal_dev'), "User prompt must contain username @drupal_dev");
+assert(str_contains($prompts['user'], 'Алексей (ответ на #10)'), "User prompt must contain sender name without username and reply id");
+assert(str_contains($prompts['user'], '2000$'), "User prompt must contain message text");
+echo "OK!\n";
+
+// Test 6: DrupalJobMarketAnalyzer (парсинг ответа ИИ: позитивный, негативный и в markdown-блоке)
+echo "6. Тест DrupalJobMarketAnalyzer (парсинг вердиктов ИИ)... ";
+
+// 6.1 Позитивный сценарий с markdown-оберткой ```json ... ```
+$mockAiPositive = new class implements \App\Ai\AiClientInterface {
+    public function generateDigest(string $systemPrompt, string $userPrompt): string {
+        return "```json\n" . json_encode([
+            'has_job_discussion' => true,
+            'topics' => ['поиск работы', 'вакансия'],
+            'participants' => ['@drupal_dev', 'Алексей'],
+            'summary' => 'Обсуждали поиск разработчика на проект со ставкой от 2000$',
+            'post_text' => "🔥 **Бонус: сегодня в Drupal-сообществе (@drupal_rus)** искали работу и предлагали вакансии...",
+        ]) . "\n```";
+    }
+};
+
+$analyzerPositive = new \App\Drupal\DrupalJobMarketAnalyzer($mockAiPositive, $dpBuilder);
+$resultPositive = $analyzerPositive->analyze('2026-09-22', 'drupal_rus', $sampleMessages);
+
+assert($resultPositive['has_job_discussion'] === true, "Must detect job discussion");
+assert($resultPositive['topics'] === ['поиск работы', 'вакансия'], "Topics must match");
+assert($resultPositive['participants'] === ['@drupal_dev', 'Алексей'], "Participants must match");
+assert(str_contains($resultPositive['post_text'], 'Бонус: сегодня в Drupal-сообществе'), "Post text must be populated");
+
+// 6.2 Негативный сценарий (только технические обсуждения)
+$mockAiNegative = new class implements \App\Ai\AiClientInterface {
+    public function generateDigest(string $systemPrompt, string $userPrompt): string {
+        return json_encode([
+            'has_job_discussion' => false,
+            'reason' => 'Участники обсуждали исключительно кэширование и views в Drupal 10.',
+        ]);
+    }
+};
+
+$analyzerNegative = new \App\Drupal\DrupalJobMarketAnalyzer($mockAiNegative, $dpBuilder);
+$resultNegative = $analyzerNegative->analyze('2026-09-22', 'drupal_rus', $sampleMessages);
+
+assert($resultNegative['has_job_discussion'] === false, "Must detect NO job discussion");
+assert(str_contains($resultNegative['reason'], 'кэширование'), "Reason must be preserved");
+
+// 6.3 Пустой список сообщений (без вызова ИИ)
+$resultEmpty = $analyzerNegative->analyze('2026-09-22', 'drupal_rus', []);
+assert($resultEmpty['has_job_discussion'] === false, "Empty messages must immediately return false");
+echo "OK!\n";
+
 echo "\n🎉 Все тесты компонентов успешно пройдены!\n";
+
