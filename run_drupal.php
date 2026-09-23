@@ -76,9 +76,9 @@ try {
     $fetcher = new DrupalChatFetcher($config);
 
     if (!$fetcher->hasSession()) {
-        echo "⚠️ ВНИМАНИЕ: Файл сессии Telegram MTProto не найден!\n";
-        echo "Для первого запуска необходимо выполнить разовую интерактивную авторизацию:\n";
-        echo "  php run_drupal.php --auth\n\n";
+        $errorMsg = "Файл сессии Telegram MTProto не найден. Выполните разовую интерактивную авторизацию: php run_drupal.php --auth";
+        echo "⚠️ ВНИМАНИЕ: {$errorMsg}\n\n";
+        $alert->sendExecutionErrorAlert(new RuntimeException($errorMsg), 'Drupal Monitor');
         exit(1);
     }
 
@@ -156,6 +156,6 @@ try {
 } catch (Throwable $e) {
     echo "\n❌ КРИТИЧЕСКАЯ ОШИБКА DRUPAL MONITOR: " . $e->getMessage() . "\n";
     echo $e->getTraceAsString() . "\n";
-    $alert->sendExecutionErrorAlert($e);
+    $alert->sendExecutionErrorAlert($e, 'Drupal Monitor');
     exit(1);
 }

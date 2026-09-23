@@ -77,12 +77,12 @@ class EmailAlert
     /**
      * Send alert about an unhandled execution error.
      */
-    public function sendExecutionErrorAlert(Throwable $e): void
+    public function sendExecutionErrorAlert(Throwable $e, string $serviceName = '4chan Digest'): void
     {
-        $subject = "💥 [4chan Digest Alert] Критическая ошибка выполнения скрипта";
+        $subject = "💥 [{$serviceName} Alert] Критическая ошибка выполнения скрипта";
 
         $body = "Здравствуйте!\n\n"
-            . "Во время работы бота произошла критическая ошибка:\n\n"
+            . "Во время работы сервиса \"{$serviceName}\" произошла критическая ошибка:\n\n"
             . "Исключение: " . get_class($e) . "\n"
             . "Сообщение: " . $e->getMessage() . "\n"
             . "Файл: " . $e->getFile() . ":" . $e->getLine() . "\n\n"
