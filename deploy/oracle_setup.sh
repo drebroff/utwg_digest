@@ -33,7 +33,14 @@ sudo apt-get install -y \
     php8.3-curl \
     php8.3-mbstring \
     php8.3-xml \
-    php8.3-gmp
+    php8.3-gmp \
+    php8.3-sockets
+
+# 4.1 Настройка лимитов памяти ядра для файберов MadelineProto/Revolt
+sudo sysctl -w vm.max_map_count=262144
+if ! grep -q "vm.max_map_count" /etc/sysctl.conf 2>/dev/null; then
+    echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
+fi
 
 # 5. Установка Composer
 if ! command -v composer &> /dev/null; then

@@ -43,7 +43,7 @@ class DrupalChatFetcher
     /**
      * Get or initialize MadelineProto instance.
      */
-    public function getMadelineProto(): API
+    public function getMadelineProto(?int $logLevel = null): API
     {
         if ($this->mp !== null) {
             return $this->mp;
@@ -68,9 +68,12 @@ class DrupalChatFetcher
             ->setApiHash($this->apiHash);
         $settings->setAppInfo($appInfo);
 
+        // Force IPv4 for reliable connection in cloud VPS environments (Oracle Cloud)
+        $settings->getConnection()->setIpv6(false);
+
         // Keep console output readable
         $logger = (new Logger())
-            ->setLevel(MPLogger::LEVEL_ERROR);
+            ->setLevel($logLevel ?? MPLogger::LEVEL_ERROR);
         $settings->setLogger($logger);
 
         $this->mp = new API($this->sessionPath, $settings);
@@ -86,7 +89,12 @@ class DrupalChatFetcher
         echo "\n🔑 Интерактивная авторизация Telegram MTProto (MadelineProto)...\n";
         echo "Файл сессии: {$this->sessionPath}\n\n";
 
-        $mp = $this->getMadelineProto();
+        if ($this->hasSession()) {
+            echo "⚠️ Внимание: найден существующий каталог сессии ({$this->sessionPath}).\n";
+            echo "Если авторизация падает или зависает, удалите его: rm -rf {$this->sessionPath}*\n\n";
+        }
+
+        $mp = $this->getMadelineProto(MPLogger::LEVEL_NOTICE);
         $mp->start();
 
         echo "\n✅ Авторизация успешно выполнена! Сессия сохранена в: {$this->sessionPath}\n";
