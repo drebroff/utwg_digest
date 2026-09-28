@@ -83,10 +83,6 @@ try {
         echo "   -> Найдено постов за вчера: " . count($twgData['posts']) . "\n";
         echo "   -> Подтянуто контекстных родительских постов: " . count($twgData['context_posts']) . "\n";
         echo "   -> Найдено картинок за вчера: " . count($twgData['images']) . "\n";
-
-        if (empty($twgData['posts'])) {
-            $alert->sendNoPostsAlert('/twg/', $twgThread['no'], $targetDate);
-        }
     }
 
     $utwgData = ['posts' => [], 'context_posts' => [], 'images' => [], 'thread_no' => 0];
@@ -97,10 +93,6 @@ try {
         echo "   -> Найдено постов за вчера: " . count($utwgData['posts']) . "\n";
         echo "   -> Подтянуто контекстных родительских постов: " . count($utwgData['context_posts']) . "\n";
         echo "   -> Найдено картинок за вчера: " . count($utwgData['images']) . "\n";
-
-        if (empty($utwgData['posts'])) {
-            $alert->sendNoPostsAlert('/utwg/', $utwgThread['no'], $targetDate);
-        }
     }
 
     $totalPosts = count($twgData['posts']) + count($utwgData['posts']);

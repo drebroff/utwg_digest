@@ -58,21 +58,6 @@ class EmailAlert
         $this->send($subject, $body);
     }
 
-    /**
-     * Send alert about 0 posts for target day.
-     */
-    public function sendNoPostsAlert(string $threadTag, int $threadNo, string $targetDate): void
-    {
-        $subject = "⚠️ [4chan Digest Alert] 0 новых постов в {$threadTag} за {$targetDate}";
-
-        $body = "Здравствуйте!\n\n"
-            . "В треде {$threadTag} (#{$threadNo}) не обнаружено ни одного нового поста за дату: {$targetDate}.\n\n"
-            . "Ссылка на тред: https://boards.4chan.org/g/thread/{$threadNo}\n"
-            . "Время проверки: " . date('Y-m-d H:i:s T') . "\n\n"
-            . "Проверьте активность в треде или корректность часового пояса в настройках.\n";
-
-        $this->send($subject, $body);
-    }
 
     /**
      * Send alert about an unhandled execution error.
