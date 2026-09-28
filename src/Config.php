@@ -52,6 +52,9 @@ class Config
             'telegram_drupal_chat' => $_ENV['TELEGRAM_DRUPAL_CHAT'] ?? 'drupal_rus',
             'enable_drupal_bonus' => filter_var($_ENV['ENABLE_DRUPAL_BONUS'] ?? true, FILTER_VALIDATE_BOOLEAN),
 
+            // PHP / Symfony / Drupal / Magento Jobs Digest (Arbeitnow)
+            'enable_jobs_digest' => filter_var($_ENV['ENABLE_JOBS_DIGEST'] ?? $_SERVER['ENABLE_JOBS_DIGEST'] ?? getenv('ENABLE_JOBS_DIGEST') ?? true, FILTER_VALIDATE_BOOLEAN),
+
             // Email Alerts (Brevo / SMTP)
             'alert_email_to' => $_ENV['ALERT_EMAIL_TO'] ?? '',
             'alert_email_from' => $_ENV['ALERT_EMAIL_FROM'] ?? 'alerts@utwg-digest.local',

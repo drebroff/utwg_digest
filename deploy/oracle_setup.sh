@@ -69,6 +69,8 @@ fi
 CRON_JOB_CHAN="0 4 * * * cd $PROJECT_DIR && /usr/bin/php run.php >> /var/log/chan_digest.log 2>&1"
 # 7.2 Бонусный мониторинг чата Drupal (@drupal_rus) в 04:30 UTC (независимый процесс)
 CRON_JOB_DRUPAL="30 4 * * * cd $PROJECT_DIR && /usr/bin/php run_drupal.php >> /var/log/drupal_digest.log 2>&1"
+# 7.3 Европейские вакансии PHP / Symfony / Drupal / Magento (Arbeitnow) в 05:00 UTC
+CRON_JOB_JOBS="0 5 * * * cd $PROJECT_DIR && /usr/bin/php run_jobs.php >> /var/log/jobs_digest.log 2>&1"
 
 EXISTING_CRON=$(crontab -l 2>/dev/null || true)
 NEW_CRON="$EXISTING_CRON"
@@ -83,13 +85,18 @@ if ! echo "$NEW_CRON" | grep -q "run_drupal.php"; then
     NEW_CRON=$(printf "%s\n%s" "$NEW_CRON" "$CRON_JOB_DRUPAL")
 fi
 
+if ! echo "$NEW_CRON" | grep -q "run_jobs.php"; then
+    echo "⏰ Добавление задания Jobs (Arbeitnow) в crontab (запуск в 05:00 UTC)..."
+    NEW_CRON=$(printf "%s\n%s" "$NEW_CRON" "$CRON_JOB_JOBS")
+fi
+
 echo "$NEW_CRON" | sed '/^$/d' | crontab -
 echo "✅ Задания в crontab настроены:"
-crontab -l | grep -E "run\.php|run_drupal\.php" || true
+crontab -l | grep -E "run\.php|run_drupal\.php|run_jobs\.php" || true
 
 # 8. Настройка файлов логов
-sudo touch /var/log/chan_digest.log /var/log/drupal_digest.log
-sudo chown $USER:$USER /var/log/chan_digest.log /var/log/drupal_digest.log
+sudo touch /var/log/chan_digest.log /var/log/drupal_digest.log /var/log/jobs_digest.log
+sudo chown $USER:$USER /var/log/chan_digest.log /var/log/drupal_digest.log /var/log/jobs_digest.log
 
 echo ""
 echo "🎉 Сервер Oracle Cloud успешно подготовлен!"

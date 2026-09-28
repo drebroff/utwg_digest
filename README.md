@@ -40,17 +40,23 @@ utwg_digest/
 │   │   ├── DrupalChatFetcher.php       # MTProto клиент (MadelineProto) для @drupal_rus
 │   │   ├── DrupalPromptBuilder.php     # Промпт для выявления тем работы и рынка труда
 │   │   └── DrupalJobMarketAnalyzer.php # Анализ сообщений через Grok AI
+│   ├── Jobs/
+│   │   ├── ArbeitnowFetcher.php        # Парсинг вакансий Arbeitnow API и резолвинг ATS
+│   │   ├── JobPromptBuilder.php        # Промпт для валидации PHP/Symfony/Drupal/Magento
+│   │   └── JobAnalyzer.php             # LLM-фильтрация (English, Remote/Hybrid) и дайджест
 │   ├── Notifier/
 │   │   └── EmailAlert.php       # Отправка SMTP алертов через Brevo
 │   ├── Telegram/
 │   │   └── TelegramPublisher.php# Публикация дайджеста и медиагрупп
 │   └── Config.php               # Загрузка конфигурации окружения
 ├── tests/
-│   └── test_components.php      # Unit-тесты компонентов (4chan + Drupal + AI)
+│   ├── test_components.php      # Unit-тесты компонентов (4chan + Drupal + AI)
+│   └── test_jobs.php            # Unit-тесты модуля Arbeitnow & Jobs
 ├── .env.example                 # Шаблон переменных окружения
 ├── composer.json
 ├── run.php                      # Основной процесс: ежедневный дайджест 4chan
-└── run_drupal.php               # Независимый процесс: мониторинг чата Drupal RU
+├── run_drupal.php               # Независимый процесс: мониторинг чата Drupal RU
+└── run_jobs.php                 # Независимый процесс: европейские PHP-вакансии (Arbeitnow)
 ```
 
 ---
@@ -185,4 +191,57 @@ php run_drupal.php --date=2026-09-22 --dry-run
 30 4 * * * cd /opt/utwg_digest && /usr/bin/php run_drupal.php >> /var/log/drupal_digest.log 2>&1
 ```
 Чтобы временно отключить мониторинг Drupal, достаточно закомментировать эту строку символом `#` в `crontab -e` либо выставить `ENABLE_DRUPAL_BONUS=false` в `.env`.
+
+---
+
+## 💼 Мониторинг европейских вакансий PHP / Symfony / Drupal / Magento (`run_jobs.php`)
+
+Независимый процесс, который ежедневно собирает свежие IT-вакансии по всей Европе из агрегатора **Arbeitnow**, строго фильтрует их через ИИ и публикует форматированный пост в Telegram-канал.
+
+### Как это работает:
+1. **Сбор вакансий**: [ArbeitnowFetcher.php](file:///home/drebroff/Projects/utwg_digest/src/Jobs/ArbeitnowFetcher.php) обращается к бесплатному JSON API `https://arbeitnow.com/api/job-board-api` и находит вакансии, созданные строго за вчерашний день (`00:00:00 – 23:59:59` в настроенном часовом поясе).
+2. **Первичный отсев**:
+   - Ключевые слова стека: `PHP`, `Symfony`, `Drupal`, `Magento 2` / `Adobe Commerce`.
+   - Формат работы: `Remote` (удаленка по Европе) или `Hybrid` (гибрид в европейском городе). 100% On-site отсеивается.
+3. **Резолвинг прямых ссылок на карьеру (Careers/ATS)**:
+   - Если ссылка ведет на страницу Arbeitnow, скрипт автоматически отслеживает HTTP 302 редирект эндпоинта `/apply` и подставляет прямую ссылку на ATS работодателя (*Greenhouse, Lever, Personio, Join.com, Teamtailor*) с очисткой трекинговых меток.
+4. **Умный AI-контроль (Gemini / Groq / Grok)**:
+   - Отсекает ложные совпадения (где PHP упомянут случайно, роли Data Science/Python/QA/Manager).
+   - Проверяет, что язык описания и требований — строго **английский** (вакансии только на немецком/французском отсеиваются).
+   - Формирует аккуратную карточку для Telegram с вилкой зарплаты, стеком и кратким описанием.
+5. **Публикация в канал**:
+   - **Если релевантные вакансии есть** — публикует аккуратный дайджест в канал.
+   - **Если за день ничего подходящего нет** — ничего лишнего не публикует (тихий пропуск).
+
+### Настройка в `.env`:
+```env
+# Включение/отключение сбора вакансий (true / false)
+ENABLE_JOBS_DIGEST=true
+```
+
+### Запуск и тестирование:
+```bash
+# Справка по опциям
+php run_jobs.php --help
+
+# Тестовый прогон за вчера без отправки в канал (сухой запуск)
+php run_jobs.php --dry-run
+
+# Проверка парсинга вакансий с Arbeitnow без обращения к ИИ
+php run_jobs.php --skip-ai
+
+# Запуск за конкретную дату
+php run_jobs.php --date=2026-09-27 --dry-run
+```
+
+### Управление процессом в cron:
+В `crontab -e` добавляется отдельной строкой (например, запуск каждое утро в 08:30):
+```cron
+30 8 * * * cd /opt/utwg_digest && /usr/bin/php run_jobs.php >> /var/log/jobs_digest.log 2>&1
+```
+
+**Как отключить при необходимости:**
+1. **Способ 1 (быстрый)**: в файле `.env` указать `ENABLE_JOBS_DIGEST=false` (скрипт будет штатно завершаться без действий).
+2. **Способ 2 (через cron)**: закомментировать строку в `crontab -e` символом `#`.
+
 
