@@ -119,7 +119,7 @@ class ArbeitnowFetcher
 
                 $candidates[] = [
                     'id' => (string)($job['slug'] ?? uniqid('job_', true)),
-                    'title' => trim((string)($job['title'] ?? 'Software Developer')),
+                    'title' => trim((string)($job['title'] ?? '')),
                     'company' => trim((string)($job['company_name'] ?? 'Unknown Company')),
                     'location' => trim((string)($job['location'] ?? 'Europe')),
                     'is_remote' => (bool)($job['remote'] ?? false),
