@@ -119,14 +119,18 @@ class ArbeitnowFetcher
 
                 $candidates[] = [
                     'id' => (string)($job['slug'] ?? uniqid('job_', true)),
+                    'source' => 'Arbeitnow',
                     'title' => trim((string)($job['title'] ?? '')),
                     'company' => trim((string)($job['company_name'] ?? 'Unknown Company')),
                     'location' => trim((string)($job['location'] ?? 'Europe')),
+                    'salary' => '',
                     'is_remote' => (bool)($job['remote'] ?? false),
+                    'is_military' => false,
                     'work_type' => $workType,
                     'url' => $resolvedUrl,
                     'original_url' => $originalUrl,
                     'created_at' => $createdAt,
+                    'pub_date' => (new DateTimeImmutable('@' . $createdAt))->setTimezone($tz)->format('Y-m-d H:i:s'),
                     'date_formatted' => (new DateTimeImmutable('@' . $createdAt))->setTimezone($tz)->format('Y-m-d H:i:s'),
                     'tags' => $job['tags'] ?? [],
                     'description_snippet' => $snippet,

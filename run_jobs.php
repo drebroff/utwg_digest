@@ -7,6 +7,7 @@ require __DIR__ . '/vendor/autoload.php';
 use App\Ai\AiFactory;
 use App\Config;
 use App\Jobs\ArbeitnowFetcher;
+use App\Jobs\DouFetcher;
 use App\Jobs\JobAnalyzer;
 use App\Notifier\EmailAlert;
 use App\Telegram\TelegramPublisher;
@@ -15,7 +16,7 @@ $options = getopt('', ['date:', 'dry-run', 'skip-ai', 'help']);
 
 if (isset($options['help'])) {
     echo <<<HELP
-Arbeitnow European PHP / Symfony / Drupal / Magento Jobs Daily Digest
+DOU.ua & Arbeitnow PHP / Symfony / Drupal / Magento / Military Tech Jobs Daily Digest
 
 Использование:
   php run_jobs.php [опции]
@@ -23,12 +24,12 @@ Arbeitnow European PHP / Symfony / Drupal / Magento Jobs Daily Digest
 Опции:
   --date=YYYY-MM-DD  Указать дату публикации вакансий (по умолчанию: вчера)
   --dry-run          Тестовый запуск: без отправки сообщения в Telegram-канал
-  --skip-ai          Пропустить вызов ИИ (только проверка загрузки вакансий с Arbeitnow)
+  --skip-ai          Пропустить вызов ИИ (только проверка загрузки вакансий)
   --help             Показать эту справку
 
 Примеры:
   php run_jobs.php --dry-run
-  php run_jobs.php --date=2026-09-27 --dry-run
+  php run_jobs.php --date=2026-10-19 --dry-run
   php run_jobs.php --skip-ai
 
 HELP;
@@ -41,12 +42,12 @@ $alert = new EmailAlert($config);
 $isDryRun = isset($options['dry-run']);
 $skipAi = isset($options['skip-ai']);
 
-$timezone = (string)$config->get('timezone', 'Europe/Vilnius');
+$timezone = (string)$config->get('timezone', 'Europe/Kyiv');
 $targetDate = $options['date'] ?? (new DateTimeImmutable('yesterday', new DateTimeZone($timezone)))->format('Y-m-d');
 $enabled = (bool)$config->get('enable_jobs_digest', true);
 
 echo "====================================================\n";
-echo "💼 Arbeitnow European PHP/Symfony/Drupal/Magento Jobs\n";
+echo "💼 DOU.ua & Arbeitnow PHP / Symfony / Drupal / Magento Jobs\n";
 echo "📅 Целевая дата: {$targetDate}\n";
 echo "🌍 Часовой пояс: {$timezone}\n";
 echo "🧠 AI Провайдер: " . $config->get('ai_provider') . "\n";
@@ -59,12 +60,21 @@ if (!$enabled) {
 }
 
 try {
-    $fetcher = new ArbeitnowFetcher();
+    $douFetcher = new DouFetcher();
+    $arbeitnowFetcher = new ArbeitnowFetcher();
 
     // 1. Поиск свежих вакансий за указанную дату
-    echo "📥 Поиск свежих вакансий за {$targetDate} на Arbeitnow...\n";
-    $candidates = $fetcher->fetchJobsForDate($targetDate, $timezone);
-    echo "   -> Найдено потенциальных кандидатов (PHP/Symfony/Drupal/Magento + Remote/Hybrid): " . count($candidates) . "\n";
+    echo "📥 Поиск свежих вакансий за {$targetDate}...\n";
+    echo "   -> Запрос к DOU.ua...\n";
+    $douCandidates = $douFetcher->fetchJobsForDate($targetDate, $timezone);
+    echo "      Найдено на DOU.ua: " . count($douCandidates) . "\n";
+
+    echo "   -> Запрос к Arbeitnow...\n";
+    $arbeitnowCandidates = $arbeitnowFetcher->fetchJobsForDate($targetDate, $timezone);
+    echo "      Найдено на Arbeitnow: " . count($arbeitnowCandidates) . "\n";
+
+    $candidates = array_merge($douCandidates, $arbeitnowCandidates);
+    echo "   -> Всего потенциальных кандидатов: " . count($candidates) . "\n";
 
     if (empty($candidates)) {
         echo "ℹ️ Свежих вакансий PHP/Symfony/Drupal/Magento за {$targetDate} не обнаружено. Завершение работы.\n";
@@ -75,8 +85,11 @@ try {
         echo "\nℹ️ Анализ ИИ пропущен флагом --skip-ai.\n";
         echo "Список найденных кандидатов:\n";
         foreach ($candidates as $idx => $c) {
-            echo "   [" . ($idx + 1) . "] {$c['title']} @ {$c['company']} ({$c['location']})\n";
-            echo "       Формат: {$c['work_type']} | Дата: {$c['date_formatted']}\n";
+            $salaryInfo = !empty($c['salary']) ? " [{$c['salary']}]" : "";
+            $milInfo = (!empty($c['is_military'])) ? " [🛡 Военная/Оборона]" : "";
+            $source = $c['source'] ?? 'Неизвестно';
+            echo "   [" . ($idx + 1) . "] [{$source}] {$c['title']} @ {$c['company']}{$salaryInfo}{$milInfo}\n";
+            echo "       Локация: {$c['location']} | Формат: {$c['work_type']} | Дата: " . ($c['pub_date'] ?? $c['date_formatted'] ?? '') . "\n";
             echo "       URL: {$c['url']}\n";
             if (!empty($c['tags'])) {
                 echo "       Теги: " . implode(', ', $c['tags']) . "\n";
@@ -95,7 +108,7 @@ try {
 
     // 3. Проверка результатов фильтрации
     if (!$analysis['has_valid_jobs'] || empty(trim($analysis['post_text']))) {
-        echo "✅ Анализ завершен: ни одна вакансия не прошла строгий фильтр (не подтвержден PHP/не Remote/не English).\n";
+        echo "✅ Анализ завершен: ни одна вакансия не прошла фильтр.\n";
         if (!empty($analysis['summary'])) {
             echo "ℹ️ Причина/резюме ИИ: {$analysis['summary']}\n";
         }
@@ -111,9 +124,9 @@ try {
 
     $postText = trim($analysis['post_text']);
 
-    echo "------------------- [ДАЙДЖЕСТ ВАКАНСИЙ ARBEITNOW] -------------------\n";
+    echo "------------------- [ДАЙДЖЕСТ ВАКАНСИЙ (DOU + ARBEITNOW)] -------------------\n";
     echo $postText . "\n";
-    echo "--------------------------------------------------------------------\n\n";
+    echo "-----------------------------------------------------------------------------\n\n";
 
     // 5. Публикация в Telegram-канал
     if ($isDryRun) {
@@ -133,6 +146,6 @@ try {
 } catch (Throwable $e) {
     echo "\n❌ КРИТИЧЕСКАЯ ОШИБКА JOBS MONITOR: " . $e->getMessage() . "\n";
     echo $e->getTraceAsString() . "\n";
-    $alert->sendExecutionErrorAlert($e, 'PHP Jobs Monitor');
+    $alert->sendExecutionErrorAlert($e, 'DOU & Arbeitnow PHP Jobs Monitor');
     exit(1);
 }

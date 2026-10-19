@@ -6,4 +6,5 @@ composer.phar
 data/
 *.madeline
 *.madeline.*
+.idea/
 

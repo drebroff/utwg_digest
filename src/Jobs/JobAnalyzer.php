@@ -85,11 +85,25 @@ class JobAnalyzer
         try {
             $data = json_decode($clean, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw new RuntimeException(
-                "Не удалось распарсить JSON-ответ от ИИ: " . $e->getMessage() . "\nОтвет ИИ:\n" . $rawResponse,
-                0,
-                $e
-            );
+            // Attempt recovery: fix invalid backslash escapes (e.g. \_ or \. or \))
+            $fixed = preg_replace('/\\\\([^"\\\\\/bfnrtu])/u', '$1', $clean);
+            if ($fixed !== null) {
+                try {
+                    $data = json_decode($fixed, true, 512, JSON_THROW_ON_ERROR);
+                } catch (JsonException) {
+                    $data = null;
+                }
+            } else {
+                $data = null;
+            }
+
+            if (!is_array($data)) {
+                throw new RuntimeException(
+                    "Не удалось распарсить JSON-ответ от ИИ: " . $e->getMessage() . "\nОтвет ИИ:\n" . $rawResponse,
+                    0,
+                    $e
+                );
+            }
         }
 
         if (!is_array($data)) {
